@@ -10,6 +10,8 @@
 # Copyright (C) 2005-2022 Mike Pall. See Copyright Notice in luajit.h
 ##############################################################################
 
+MACOSX_DEPLOYMENT_TARGET=12.0
+
 MAJVER=  2
 MINVER=  1
 RELVER=  0
@@ -36,7 +38,8 @@ CC= $(DEFAULT_CC)
 # to slow down the C part by not omitting it. Debugging, tracebacks and
 # unwinding are not affected -- the assembler part has frame unwind
 # information and GCC emits it where needed (x64) or with -g (see CCDEBUG).
-CCOPT= -O2 -fomit-frame-pointer
+#CCOPT= -O2 -fomit-frame-pointer
+CCOPT= -O0
 # Use this if you want to generate a smaller binary (but it's slower):
 #CCOPT= -Os -fomit-frame-pointer
 # Note: it's no longer recommended to use -O3 with GCC 4.x.
@@ -56,7 +59,7 @@ CCOPT_mips=
 #
 CCDEBUG=
 # Uncomment the next line to generate debug information:
-#CCDEBUG= -g
+CCDEBUG= -g
 #
 CCWARN= -Wall
 # Uncomment the next line to enable more warnings:

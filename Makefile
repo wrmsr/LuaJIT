@@ -12,6 +12,7 @@
 #
 # Copyright (C) 2005-2022 Mike Pall. See Copyright Notice in luajit.h
 ##############################################################################
+export MACOSX_DEPLOYMENT_TARGET=12.0
 
 MAJVER=  2
 MINVER=  1
