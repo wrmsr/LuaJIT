@@ -3,14 +3,138 @@
 ** Copyright (C) 2005-2022 Mike Pall. See Copyright Notice in luajit.h
 */
 
+#include <stdint.h>
 #include <math.h>
+#include <string.h>
 
-#define lj_strscan_c
-#define LUA_CORE
+/* Tagged value. */
+typedef struct TValue {
+    uint64_t u64;        /* 64 bit pattern overlaps number. */
+    double n;        /* Number object overlaps split tag/value object. */
+    int64_t it64;
+    struct {
+        int32_t i;    /* Integer value. */
+        uint32_t it;    /* Internal object tag. Must overlap MSW of number. */
+    };
+    int64_t ftsz;        /* Frame type and size of previous frame, or PC. */
+    struct {
+        uint32_t lo;    /* Lower 32 bits of number. */
+        uint32_t hi;    /* Upper 32 bits of number. */
+    } u32;
+} TValue;
 
-#include "lj_obj.h"
-#include "lj_char.h"
-#include "lj_strscan.h"
+#define lj_assertX(c, ...)    ((void)0)
+
+#define strdata(s)    ((const char *)((s)+1))
+
+#define LJ_CHAR_CNTRL    0x01
+#define LJ_CHAR_SPACE    0x02
+#define LJ_CHAR_PUNCT    0x04
+#define LJ_CHAR_DIGIT    0x08
+#define LJ_CHAR_XDIGIT    0x10
+#define LJ_CHAR_UPPER    0x20
+#define LJ_CHAR_LOWER    0x40
+#define LJ_CHAR_IDENT    0x80
+#define LJ_CHAR_ALPHA    (LJ_CHAR_LOWER|LJ_CHAR_UPPER)
+#define LJ_CHAR_ALNUM    (LJ_CHAR_ALPHA|LJ_CHAR_DIGIT)
+#define LJ_CHAR_GRAPH    (LJ_CHAR_ALNUM|LJ_CHAR_PUNCT)
+
+const uint8_t lj_char_bits[257] = {
+        0,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 3, 3, 3, 3, 3, 1, 1,
+        1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+        2, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+        152, 152, 152, 152, 152, 152, 152, 152, 152, 152, 4, 4, 4, 4, 4, 4,
+        4, 176, 176, 176, 176, 176, 176, 160, 160, 160, 160, 160, 160, 160, 160, 160,
+        160, 160, 160, 160, 160, 160, 160, 160, 160, 160, 160, 4, 4, 4, 4, 132,
+        4, 208, 208, 208, 208, 208, 208, 192, 192, 192, 192, 192, 192, 192, 192, 192,
+        192, 192, 192, 192, 192, 192, 192, 192, 192, 192, 192, 4, 4, 4, 4, 1,
+        128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128,
+        128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128,
+        128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128,
+        128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128,
+        128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128,
+        128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128,
+        128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128,
+        128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128, 128
+};
+
+#define LJ_TNIL            (~0u)
+#define LJ_TFALSE        (~1u)
+#define LJ_TTRUE        (~2u)
+#define LJ_TLIGHTUD        (~3u)
+#define LJ_TSTR            (~4u)
+#define LJ_TUPVAL        (~5u)
+#define LJ_TTHREAD        (~6u)
+#define LJ_TPROTO        (~7u)
+#define LJ_TFUNC        (~8u)
+#define LJ_TTRACE        (~9u)
+#define LJ_TCDATA        (~10u)
+#define LJ_TTAB            (~11u)
+#define LJ_TUDATA        (~12u)
+#define LJ_TISNUM        LJ_TNUMX
+/* This is just the canonical number type used in some places. */
+#define LJ_TNUMX        (~13u)
+
+
+/* Only pass -1 or 0..255 to these macros. Never pass a signed char! */
+#define lj_char_isa(c, t)    ((lj_char_bits+1)[(c)] & t)
+#define lj_char_iscntrl(c)    lj_char_isa((c), LJ_CHAR_CNTRL)
+#define lj_char_isspace(c)    lj_char_isa((c), LJ_CHAR_SPACE)
+#define lj_char_ispunct(c)    lj_char_isa((c), LJ_CHAR_PUNCT)
+#define lj_char_isdigit(c)    lj_char_isa((c), LJ_CHAR_DIGIT)
+#define lj_char_isxdigit(c)    lj_char_isa((c), LJ_CHAR_XDIGIT)
+#define lj_char_isupper(c)    lj_char_isa((c), LJ_CHAR_UPPER)
+#define lj_char_islower(c)    lj_char_isa((c), LJ_CHAR_LOWER)
+#define lj_char_isident(c)    lj_char_isa((c), LJ_CHAR_IDENT)
+#define lj_char_isalpha(c)    lj_char_isa((c), LJ_CHAR_ALPHA)
+#define lj_char_isalnum(c)    lj_char_isa((c), LJ_CHAR_ALNUM)
+#define lj_char_isgraph(c)    lj_char_isa((c), LJ_CHAR_GRAPH)
+
+#define lj_char_toupper(c)    ((c) - (lj_char_islower(c) >> 1))
+#define lj_char_tolower(c)    ((c) + lj_char_isupper(c))
+
+/* Options for accepted/returned formats. */
+#define STRSCAN_OPT_TOINT    0x01  /* Convert to int32_t, if possible. */
+#define STRSCAN_OPT_TONUM    0x02  /* Always convert to double. */
+#define STRSCAN_OPT_IMAG     0x04
+#define STRSCAN_OPT_LL       0x08
+#define STRSCAN_OPT_C        0x10
+
+/* Integers have itype == LJ_TISNUM doubles have itype < LJ_TISNUM */
+#define LJ_TISNUM        LJ_TNUMX
+#define LJ_TISTRUECOND        LJ_TFALSE
+#define LJ_TISPRI        LJ_TTRUE
+#define LJ_TISGCV        (LJ_TSTR+1)
+#define LJ_TISTABUD        LJ_TTAB
+
+
+/* Returned format. */
+typedef enum {
+    STRSCAN_ERROR,
+    STRSCAN_NUM,
+    STRSCAN_IMAG,
+    STRSCAN_INT,
+    STRSCAN_U32,
+    STRSCAN_I64,
+    STRSCAN_U64,
+} StrScanFmt;
+
+typedef uint32_t MSize;
+
+StrScanFmt lj_strscan_scan(const uint8_t *p, MSize len, TValue *o, uint32_t opt);
+
+#define U64x(hi, lo)    (((uint64_t)0x##hi << 32) + (uint64_t)0x##lo)
+
+#define setnanV(o)        ((o)->u64 = U64x(fff80000,00000000))
+#define setpinfV(o)        ((o)->u64 = U64x(7ff00000,00000000))
+#define setminfV(o)        ((o)->u64 = U64x(fff00000,00000000))
+
+#define setitype(o, i)        ((o)->it = ((i) << 15))
+
+#define tvismzero(o)    ((o)->u64 == U64x(80000000,00000000))
+
+#define lj_num2int(n)   ((int32_t)(n))
 
 /* -- Scanning numbers ---------------------------------------------------- */
 
@@ -72,19 +196,16 @@
 
 #define casecmp(c, k)    (((c) | 0x20) == k)
 
+#define lj_fls(x)    ((uint32_t)(__builtin_clz(x)^31))
+
 /* Final conversion to double. */
 static void strscan_double(uint64_t x, TValue *o, int32_t ex2, int32_t neg) {
     double n;
 
     /* Avoid double rounding for denormals. */
-    if (LJ_UNLIKELY(ex2 <= -1075 && x != 0)) {
+    if (ex2 <= -1075 && x != 0) {
         /* NYI: all of this generates way too much code on 32 bit CPUs. */
-#if (defined(__GNUC__) || defined(__clang__)) && LJ_64
-        int32_t b = (int32_t) (__builtin_clzll(x) ^ 63);
-#else
-        int32_t b = (x>>32) ? 32+(int32_t)lj_fls((uint32_t)(x>>32)) :
-                  (int32_t)lj_fls((uint32_t)x);
-#endif
+        int32_t b = (x >> 32) ? 32 + (int32_t) lj_fls((uint32_t) (x >> 32)) : (int32_t) lj_fls((uint32_t) x);
         if ((int32_t) b + ex2 <= -1023 && (int32_t) b + ex2 >= -1075) {
             uint64_t rb = (uint64_t) 1 << (-1075 - ex2);
             if ((x & rb) && ((x & (rb + rb + rb - 1)))) x += rb + rb;
@@ -411,23 +532,24 @@ StrScanFmt lj_strscan_scan(const uint8_t *p, MSize len, TValue *o, uint32_t opt)
     const uint8_t *pe = p + len;
 
     // Remove leading space, parse sign and non-numbers.
-    if (LJ_UNLIKELY(!lj_char_isdigit(*p))) {
+    if (!lj_char_isdigit(*p)) {
         while (lj_char_isspace(*p)) { p++; }
-        if (*p == '+' || *p == '-') {neg = (*p++ == '-');
-        if (LJ_UNLIKELY(*p >= 'A')) {  // Parse "inf", "infinity" or "nan".
+        if (*p == '+' || *p == '-') { neg = (*p++ == '-'); }
+        if (*p >= 'A') {  // Parse "inf", "infinity" or "nan".
             TValue tmp;
             setnanV(&tmp);
             if (casecmp(p[0], 'i') && casecmp(p[1], 'n') && casecmp(p[2], 'f')) {
-                if (neg) setminfV(&tmp); else setpinfV(&tmp);
+                if (neg) { setminfV(&tmp); } else { setpinfV(&tmp); }
                 p += 3;
                 if (casecmp(p[0], 'i') && casecmp(p[1], 'n') && casecmp(p[2], 'i') &&
-                    casecmp(p[3], 't') && casecmp(p[4], 'y'))
+                    casecmp(p[3], 't') && casecmp(p[4], 'y')) {
                     p += 5;
+                }
             } else if (casecmp(p[0], 'n') && casecmp(p[1], 'a') && casecmp(p[2], 'n')) {
                 p += 3;
             }
-            while (lj_char_isspace(*p)) p++;
-            if (*p || p < pe) return STRSCAN_ERROR;
+            while (lj_char_isspace(*p)) { p++; }
+            if (*p || p < pe) { return STRSCAN_ERROR; }
             o->u64 = tmp.u64;
             return STRSCAN_NUM;
         }
@@ -443,18 +565,19 @@ StrScanFmt lj_strscan_scan(const uint8_t *p, MSize len, TValue *o, uint32_t opt)
         int32_t ex = 0;
 
         // Determine base and skip leading zeros.
-        if (LJ_UNLIKELY(*p <= '0')) {
+        if (*p <= '0') {
             if (*p == '0') {
-                if (casecmp(p[1], 'x'))
+                if (casecmp(p[1], 'x')) {
                     base = 16, cmask = LJ_CHAR_XDIGIT, p += 2;
-                else if (casecmp(p[1], 'b'))
+                } else if (casecmp(p[1], 'b')) {
                     base = 2, cmask = LJ_CHAR_DIGIT, p += 2;
+                }
             }
             for (;; p++) {
                 if (*p == '0') {
                     hasdig = 1;
                 } else if (*p == '.') {
-                    if (dp) return STRSCAN_ERROR;
+                    if (dp) { return STRSCAN_ERROR; }
                     dp = p;
                 } else {
                     break;
@@ -464,28 +587,28 @@ StrScanFmt lj_strscan_scan(const uint8_t *p, MSize len, TValue *o, uint32_t opt)
 
         // Preliminary digit and decimal point scan.
         for (sp = p;; p++) {
-            if (LJ_LIKELY(lj_char_isa(*p, cmask))) {
+            if (lj_char_isa(*p, cmask)) {
                 x = x * 10 + (*p & 15);  // For fast path below.
                 dig++;
             } else if (*p == '.') {
-                if (dp) return STRSCAN_ERROR;
+                if (dp) { return STRSCAN_ERROR; }
                 dp = p;
             } else {
                 break;
             }
         }
-        if (!(hasdig | dig)) return STRSCAN_ERROR;
+        if (!(hasdig | dig)) { return STRSCAN_ERROR; }
 
         // Handle decimal point.
         if (dp) {
-            if (base == 2) return STRSCAN_ERROR;
+            if (base == 2) { return STRSCAN_ERROR; }
             fmt = STRSCAN_NUM;
             if (dig) {
                 ex = (int32_t) (dp - (p - 1));
                 dp = p - 1;
-                while (ex < 0 && *dp-- == '0') ex++, dig--;  // Skip trailing zeros.
-                if (ex <= -STRSCAN_MAXEXP) return STRSCAN_ERROR;
-                if (base == 16) ex *= 4;
+                while (ex < 0 && *dp-- == '0') { ex++, dig--; }  // Skip trailing zeros.
+                if (ex <= -STRSCAN_MAXEXP) { return STRSCAN_ERROR; }
+                if (base == 16) { ex *= 4; }
             }
         }
 
@@ -495,12 +618,12 @@ StrScanFmt lj_strscan_scan(const uint8_t *p, MSize len, TValue *o, uint32_t opt)
             int negx = 0;
             fmt = STRSCAN_NUM;
             p++;
-            if (*p == '+' || *p == '-') negx = (*p++ == '-');
-            if (!lj_char_isdigit(*p)) return STRSCAN_ERROR;
+            if (*p == '+' || *p == '-') { negx = (*p++ == '-'); }
+            if (!lj_char_isdigit(*p)) { return STRSCAN_ERROR; }
             xx = (*p++ & 15);
             while (lj_char_isdigit(*p)) {
                 xx = xx * 10 + (*p & 15);
-                if (xx >= STRSCAN_MAXEXP) return STRSCAN_ERROR;
+                if (xx >= STRSCAN_MAXEXP) { return STRSCAN_ERROR; }
                 p++;
             }
             ex += negx ? -(int32_t) xx : (int32_t) xx;
@@ -511,27 +634,29 @@ StrScanFmt lj_strscan_scan(const uint8_t *p, MSize len, TValue *o, uint32_t opt)
             // I (IMAG), U (U32), LL (I64), ULL/LLU (U64), L (long), UL/LU (ulong).
             // NYI: f (float). Not needed until cp_number() handles non-integers.
             if (casecmp(*p, 'i')) {
-                if (!(opt & STRSCAN_OPT_IMAG)) return STRSCAN_ERROR;
+                if (!(opt & STRSCAN_OPT_IMAG)) { return STRSCAN_ERROR; }
                 p++;
                 fmt = STRSCAN_IMAG;
             } else if (fmt == STRSCAN_INT) {
-                if (casecmp(*p, 'u')) p++, fmt = STRSCAN_U32;
+                if (casecmp(*p, 'u')) { p++, fmt = STRSCAN_U32; }
                 if (casecmp(*p, 'l')) {
                     p++;
-                    if (casecmp(*p, 'l')) p++, fmt += STRSCAN_I64 - STRSCAN_INT;
-                    else if (!(opt & STRSCAN_OPT_C)) return STRSCAN_ERROR;
-                    else if (sizeof(long) == 8) fmt += STRSCAN_I64 - STRSCAN_INT;
+                    if (casecmp(*p, 'l')) { p++, fmt += STRSCAN_I64 - STRSCAN_INT; }
+                    else if (!(opt & STRSCAN_OPT_C)) { return STRSCAN_ERROR; }
+                    else if (sizeof(long) == 8) { fmt += STRSCAN_I64 - STRSCAN_INT; }
                 }
-                if (casecmp(*p, 'u') && (fmt == STRSCAN_INT || fmt == STRSCAN_I64))
+                if (casecmp(*p, 'u') && (fmt == STRSCAN_INT || fmt == STRSCAN_I64)) {
                     p++, fmt += STRSCAN_U32 - STRSCAN_INT;
+                }
                 if ((fmt == STRSCAN_U32 && !(opt & STRSCAN_OPT_C)) ||
-                    (fmt >= STRSCAN_I64 && !(opt & STRSCAN_OPT_LL)))
+                    (fmt >= STRSCAN_I64 && !(opt & STRSCAN_OPT_LL))) {
                     return STRSCAN_ERROR;
+                }
             }
-            while (lj_char_isspace(*p)) p++;
-            if (*p) return STRSCAN_ERROR;
+            while (lj_char_isspace(*p)) { p++; }
+            if (*p) { return STRSCAN_ERROR; }
         }
-        if (p < pe) return STRSCAN_ERROR;
+        if (p < pe) { return STRSCAN_ERROR; }
 
         // Fast path for decimal 32 bit integers.
         if (fmt == STRSCAN_INT && base == 10 && (dig < 10 || (dig == 10 && *sp <= '2' && x < 0x80000000u + neg))) {
@@ -548,20 +673,22 @@ StrScanFmt lj_strscan_scan(const uint8_t *p, MSize len, TValue *o, uint32_t opt)
         }
 
         // Dispatch to base-specific parser.
-        if (base == 0 && !(fmt == STRSCAN_NUM || fmt == STRSCAN_IMAG))
+        if (base == 0 && !(fmt == STRSCAN_NUM || fmt == STRSCAN_IMAG)) {
             return strscan_oct(sp, o, fmt, neg, dig);
-        if (base == 16)
+        }
+        if (base == 16) {
             fmt = strscan_hex(sp, o, fmt, opt, ex, neg, dig);
-        else if (base == 2)
+        } else if (base == 2) {
             fmt = strscan_bin(sp, o, fmt, opt, ex, neg, dig);
-        else
+        } else {
             fmt = strscan_dec(sp, o, fmt, opt, ex, neg, dig);
+        }
 
         // Try to convert number to integer, if requested.
         if (fmt == STRSCAN_NUM && (opt & STRSCAN_OPT_TOINT) && !tvismzero(o)) {
             double n = o->n;
             int32_t i = lj_num2int(n);
-            if (n == (lua_Number) i) {
+            if (n == (double) i) {
                 o->i = i;
                 return STRSCAN_INT;
             }
@@ -570,27 +697,19 @@ StrScanFmt lj_strscan_scan(const uint8_t *p, MSize len, TValue *o, uint32_t opt)
     }
 }
 
-int LJ_FASTCALL lj_strscan_num(GCstr *str, TValue *o) {
-    StrScanFmt fmt = lj_strscan_scan((const uint8_t *) strdata(str), str->len, o,
-                                     STRSCAN_OPT_TONUM);
+int lj_strscan_num(const uint8_t *str, MSize len, TValue *o) {
+    StrScanFmt fmt = lj_strscan_scan(str, len, o, STRSCAN_OPT_TONUM);
     lj_assertX(fmt == STRSCAN_ERROR || fmt == STRSCAN_NUM, "bad scan format");
     return (fmt != STRSCAN_ERROR);
 }
 
-#if LJ_DUALNUM
-
-int LJ_FASTCALL lj_strscan_number(GCstr *str, TValue *o) {
-    StrScanFmt fmt = lj_strscan_scan((const uint8_t *) strdata(str), str->len, o,
-                                     STRSCAN_OPT_TOINT);
-    lj_assertX(fmt == STRSCAN_ERROR || fmt == STRSCAN_NUM || fmt == STRSCAN_INT,
-               "bad scan format");
+int lj_strscan_number(const uint8_t *str, MSize len, TValue *o) {
+    StrScanFmt fmt = lj_strscan_scan(str, len, o, STRSCAN_OPT_TOINT);
+    lj_assertX(fmt == STRSCAN_ERROR || fmt == STRSCAN_NUM || fmt == STRSCAN_INT, "bad scan format");
     if (fmt == STRSCAN_INT) setitype(o, LJ_TISNUM);
     return (fmt != STRSCAN_ERROR);
 }
 
-#endif
-
-#undef DNEXT
-#undef DPREV
-#undef DLEN
-
+int main(int argc, char **argv) {
+    return 0;
+}

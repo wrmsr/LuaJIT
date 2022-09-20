@@ -17,13 +17,26 @@
 
 /* Action definitions. */
 enum {
-    DASM_STOP, DASM_SECTION, DASM_ESC, DASM_REL_EXT,
+    DASM_STOP,
+    DASM_SECTION,
+    DASM_ESC,
+    DASM_REL_EXT,
     /* The following actions need a buffer position. */
-    DASM_ALIGN, DASM_REL_LG, DASM_LABEL_LG,
+    DASM_ALIGN,
+    DASM_REL_LG,
+    DASM_LABEL_LG,
     /* The following actions also have an argument. */
-    DASM_REL_PC, DASM_LABEL_PC, DASM_REL_A,
-    DASM_IMM, DASM_IMM6, DASM_IMM12, DASM_IMM13W, DASM_IMM13X, DASM_IMML,
-    DASM_IMMV, DASM_VREG,
+    DASM_REL_PC,
+    DASM_LABEL_PC,
+    DASM_REL_A,
+    DASM_IMM,
+    DASM_IMM6,
+    DASM_IMM12,
+    DASM_IMM13W,
+    DASM_IMM13X,
+    DASM_IMML,
+    DASM_IMMV,
+    DASM_VREG,
     DASM__MAX
 };
 

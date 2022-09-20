@@ -18,10 +18,28 @@
 /* Action definitions. DASM_STOP must be 255. */
 enum {
     DASM_DISP = 233,
-    DASM_IMM_S, DASM_IMM_B, DASM_IMM_W, DASM_IMM_D, DASM_IMM_WB, DASM_IMM_DB,
-    DASM_VREG, DASM_SPACE, DASM_SETLABEL, DASM_REL_A, DASM_REL_LG, DASM_REL_PC,
-    DASM_IMM_LG, DASM_IMM_PC, DASM_LABEL_LG, DASM_LABEL_PC, DASM_ALIGN,
-    DASM_EXTERN, DASM_ESC, DASM_MARK, DASM_SECTION, DASM_STOP
+    DASM_IMM_S,
+    DASM_IMM_B,
+    DASM_IMM_W,
+    DASM_IMM_D,
+    DASM_IMM_WB,
+    DASM_IMM_DB,
+    DASM_VREG,
+    DASM_SPACE,
+    DASM_SETLABEL,
+    DASM_REL_A,
+    DASM_REL_LG,
+    DASM_REL_PC,
+    DASM_IMM_LG,
+    DASM_IMM_PC,
+    DASM_LABEL_LG,
+    DASM_LABEL_PC,
+    DASM_ALIGN,
+    DASM_EXTERN,
+    DASM_ESC,
+    DASM_MARK,
+    DASM_SECTION,
+    DASM_STOP
 };
 
 /* Maximum number of section buffer positions for a single dasm_put() call. */
@@ -586,8 +604,7 @@ int dasm_encode(Dst_DECL, void *buffer) {
                         if (shrink == 4) {
                             cp--;
                             cp[-1] = *cp - 0x10;
-                        }
-                        else cp[-1] = 0xeb;
+                        } else cp[-1] = 0xeb;
                         goto wb;
                     }
                     case DASM_IMM_LG:

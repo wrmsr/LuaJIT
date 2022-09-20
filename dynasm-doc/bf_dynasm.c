@@ -3,8 +3,8 @@
 #endif
 #include <stdio.h>
 #include <stdlib.h>
-#include "luajit-2.0/dynasm/dasm_proto.h"
-#include "luajit-2.0/dynasm/dasm_x86.h"
+#include "../dynasm/dasm_proto.h"
+#include "../dynasm/dasm_x86.h"
 #if _WIN32
 #include <Windows.h>
 #else

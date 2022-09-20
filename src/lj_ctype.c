@@ -18,7 +18,7 @@
 
 /* -- C type definitions -------------------------------------------------- */
 
-/* Predefined typedefs. */
+// Predefined typedefs.
 #define CTTDDEF(_) \
   /* Vararg handling. */ \
   _("va_list",            P_VOID) \
@@ -109,7 +109,7 @@
   _("sizeof",        0,    CTOK_SIZEOF) \
   _("__alignof",    0,    CTOK_ALIGNOF) \
   _("__alignof__",    0,    CTOK_ALIGNOF) \
-  /* End of keyword list. */
+  // End of keyword list.
 
 /* Type info for predefined types. Size merged in. */
 static CTInfo lj_ctype_typeinfo[] = {
@@ -221,8 +221,7 @@ CTypeID lj_ctype_getname(CTState *cts, CType **ctp, GCstr *name, uint32_t tmask)
     CTypeID id = cts->hash[ct_hashname(name)];
     while (id) {
         CType *ct = ctype_get(cts, id);
-        if (gcref(ct->name) == obj2gco(name) &&
-            ((tmask >> ctype_type(ct->info)) & 1)) {
+        if (gcref(ct->name) == obj2gco(name) && ((tmask >> ctype_type(ct->info)) & 1)) {
             *ctp = ct;
             return id;
         }

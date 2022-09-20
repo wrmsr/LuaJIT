@@ -172,7 +172,7 @@ static CPToken cp_number(CPState *cp) {
     return CTOK_INTEGER;
 }
 
-/* Parse identifier or keyword. */
+// Parse identifier or keyword.
 static CPToken cp_ident(CPState *cp) {
     do { cp_save(cp, cp->c); } while (lj_char_isident(cp_get(cp)));
     cp->str = lj_buf_str(cp->L, &cp->sb);
@@ -182,11 +182,11 @@ static CPToken cp_ident(CPState *cp) {
     return CTOK_IDENT;
 }
 
-/* Parse parameter. */
+// Parse parameter.
 static CPToken cp_param(CPState *cp) {
     CPChar c = cp_get(cp);
     TValue *o = cp->param;
-    if (lj_char_isident(c) || c == '$')  /* Reserve $xyz for future extensions. */
+    if (lj_char_isident(c) || c == '$')  // Reserve $xyz for future extensions.
         cp_errmsg(cp, c, LJ_ERR_XSYNTAX);
     if (!o || o >= cp->L->top)
         cp_err(cp, LJ_ERR_FFI_NUMPARAM);
@@ -287,7 +287,7 @@ static CPToken cp_string(CPState *cp) {
     }
 }
 
-/* Skip C comment. */
+// Skip C comment.
 static void cp_comment_c(CPState *cp) {
     do {
         if (cp_get(cp) == '*') {
@@ -302,7 +302,7 @@ static void cp_comment_c(CPState *cp) {
     } while (cp->c != '\0');
 }
 
-/* Skip C++ comment. */
+// Skip C++ comment.
 static void cp_comment_cpp(CPState *cp) {
     while (!cp_iseol(cp_get(cp)) && cp->c != '\0');
 }
@@ -398,22 +398,22 @@ static LJ_NOINLINE CPToken cp_next(CPState *cp) {
 typedef CTypeID CPDeclIdx;    /* Index into declaration stack. */
 typedef uint32_t CPscl;        /* Storage class flags. */
 
-/* Type declaration context. */
+// Type declaration context.
 typedef struct CPDecl {
-    CPDeclIdx top;    /* Top of declaration stack. */
-    CPDeclIdx pos;    /* Insertion position in declaration chain. */
-    CPDeclIdx specpos;    /* Saved position for declaration specifier. */
-    uint32_t mode;    /* Declarator mode. */
-    CPState *cp;        /* C parser state. */
-    GCstr *name;        /* Name of declared identifier (if direct). */
-    GCstr *redir;        /* Redirected symbol name. */
-    CTypeID nameid;    /* Existing typedef for declared identifier. */
-    CTInfo attr;        /* Attributes. */
-    CTInfo fattr;        /* Function attributes. */
-    CTInfo specattr;    /* Saved attributes. */
-    CTInfo specfattr;    /* Saved function attributes. */
-    CTSize bits;        /* Field size in bits (if any). */
-    CType stack[CPARSE_MAX_DECLSTACK];  /* Type declaration stack. */
+    CPDeclIdx top;    // Top of declaration stack.
+    CPDeclIdx pos;    // Insertion position in declaration chain.
+    CPDeclIdx specpos;    // Saved position for declaration specifier.
+    uint32_t mode;    // Declarator mode.
+    CPState *cp;        // C parser state.
+    GCstr *name;        // Name of declared identifier (if direct).
+    GCstr *redir;        // Redirected symbol name.
+    CTypeID nameid;    // Existing typedef for declared identifier.
+    CTInfo attr;        // Attributes.
+    CTInfo fattr;        // Function attributes.
+    CTInfo specattr;    // Saved attributes.
+    CTInfo specfattr;    // Saved function attributes.
+    CTSize bits;        // Field size in bits (if any).
+    CType stack[CPARSE_MAX_DECLSTACK];  // Type declaration stack.
 } CPDecl;
 
 /* Forward declarations. */
@@ -1245,7 +1245,7 @@ static void cp_decl_msvcattribute(CPState *cp, CPDecl *decl) {
     cp_check(cp, ')');
 }
 
-/* Parse declaration attributes (and common qualifiers). */
+// Parse declaration attributes (and common qualifiers).
 static void cp_decl_attributes(CPState *cp, CPDecl *decl) {
     for (;;) {
         switch (cp->tok) {
@@ -1256,9 +1256,9 @@ static void cp_decl_attributes(CPState *cp, CPDecl *decl) {
                 decl->attr |= CTF_VOLATILE;
                 break;
             case CTOK_RESTRICT:
-                break;  /* Ignore. */
+                break;  // Ignore.
             case CTOK_EXTENSION:
-                break;  /* Ignore. */
+                break;  // Ignore.
             case CTOK_ATTRIBUTE:
                 cp_decl_gccattribute(cp, decl);
                 continue;
@@ -1557,7 +1557,7 @@ static CTypeID cp_decl_enum(CPState *cp, CPDecl *sdecl) {
     return eid;
 }
 
-/* Parse declaration specifiers. */
+// Parse declaration specifiers.
 static CPscl cp_decl_spec(CPState *cp, CPDecl *decl, CPscl scl) {
     uint32_t cds = 0, sz = 0;
     CTypeID tdef = 0;
@@ -1571,7 +1571,7 @@ static CPscl cp_decl_spec(CPState *cp, CPDecl *decl, CPscl scl) {
     decl->pos = decl->top = 0;
     decl->stack[0].next = 0;
 
-    for (;;) {  /* Parse basic types. */
+    for (;;) {  // Parse basic types.
         cp_decl_attributes(cp, decl);
         if (cp->tok >= CTOK_FIRSTDECL && cp->tok <= CTOK_LASTDECLFLAG) {
             uint32_t cbit;
@@ -1604,7 +1604,7 @@ static CPscl cp_decl_spec(CPState *cp, CPDecl *decl, CPscl scl) {
                 continue;
             case CTOK_IDENT:
                 if (ctype_istypedef(cp->ct->info)) {
-                    tdef = ctype_cid(cp->ct->info);  /* Get typedef. */
+                    tdef = ctype_cid(cp->ct->info);  // Get typedef.
                     cp_next(cp);
                     continue;
                 }
@@ -1620,7 +1620,7 @@ static CPscl cp_decl_spec(CPState *cp, CPDecl *decl, CPscl scl) {
     }
     end_decl:
 
-    if ((cds & CDF_COMPLEX))  /* Use predefined complex types. */
+    if ((cds & CDF_COMPLEX))  // Use predefined complex types.
         tdef = sz == 4 ? CTID_COMPLEX_FLOAT : CTID_COMPLEX_DOUBLE;
 
     if (tdef) {
@@ -1629,7 +1629,7 @@ static CPscl cp_decl_spec(CPState *cp, CPDecl *decl, CPscl scl) {
         cp_push(decl, CTINFO(CT_VOID, (decl->attr & CTF_QUAL)), CTSIZE_INVALID);
         decl->attr &= ~CTF_QUAL;
     } else {
-        /* Determine type info and size. */
+        // Determine type info and size.
         CTInfo info = CTINFO(CT_NUM, (cds & CDF_UNSIGNED) ? CTF_UNSIGNED : 0);
         if ((cds & CDF_BOOL)) {
             if ((cds & ~(CDF_SCL | CDF_BOOL | CDF_INT | CDF_SIGNED | CDF_UNSIGNED)))
@@ -1644,7 +1644,7 @@ static CPscl cp_decl_spec(CPState *cp, CPDecl *decl, CPscl scl) {
             if ((cds & CDF_LONG)) sz = sizeof(long double);
         } else if ((cds & CDF_CHAR)) {
             if ((cds & (CDF_CHAR | CDF_SIGNED | CDF_UNSIGNED)) == CDF_CHAR)
-                info |= CTF_UCHAR;  /* Handle platforms where char is unsigned. */
+                info |= CTF_UCHAR;  // Handle platforms where char is unsigned.
         } else if ((cds & CDF_SHORT)) {
             sz = sizeof(short);
         } else if ((cds & CDF_LONGLONG)) {
@@ -1658,15 +1658,15 @@ static CPscl cp_decl_spec(CPState *cp, CPDecl *decl, CPscl scl) {
             sz = sizeof(int);
         }
         lj_assertCP(sz != 0, "basic ctype with zero size");
-        info += CTALIGN(lj_fls(sz));  /* Use natural alignment. */
-        info += (decl->attr & CTF_QUAL);  /* Merge qualifiers. */
+        info += CTALIGN(lj_fls(sz));  // Use natural alignment.
+        info += (decl->attr & CTF_QUAL);  // Merge qualifiers.
         cp_push(decl, info, sz);
         decl->attr &= ~CTF_QUAL;
     }
     decl->specpos = decl->pos;
     decl->specattr = decl->attr;
     decl->specfattr = decl->fattr;
-    return (cds & CDF_SCL);  /* Return storage class. */
+    return (cds & CDF_SCL);  // Return storage class.
 }
 
 /* Parse array declaration. */
@@ -1943,7 +1943,7 @@ static void cp_decl_multi(CPState *cp) {
     }
 }
 
-/* Parse a single C type declaration. */
+// Parse a single C type declaration.
 static void cp_decl_single(CPState *cp) {
     CPDecl decl;
     cp_decl_spec(cp, &decl, 0);

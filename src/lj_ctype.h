@@ -176,17 +176,17 @@ typedef LJ_ALIGN(8) struct CCallback {
     MSize slot;            /* Current callback slot. */
 } CCallback;
 
-/* C type state. */
+// C type state.
 typedef struct CTState {
-    CType *tab;        /* C type table. */
-    CTypeID top;        /* Current top of C type table. */
-    MSize sizetab;    /* Size of C type table. */
-    lua_State *L;        /* Lua state (needed for errors and allocations). */
-    global_State *g;    /* Global state. */
-    GCtab *finalizer;    /* Map of cdata to finalizer. */
-    GCtab *miscmap;    /* Map of -CTypeID to metatable and cb slot to func. */
-    CCallback cb;        /* Temporary callback state. */
-    CTypeID1 hash[CTHASH_SIZE];  /* Hash anchors for C type table. */
+    CType *tab;        // C type table.
+    CTypeID top;        // Current top of C type table.
+    MSize sizetab;    // Size of C type table.
+    lua_State *L;        // Lua state (needed for errors and allocations).
+    global_State *g;    // Global state.
+    GCtab *finalizer;    // Map of cdata to finalizer.
+    GCtab *miscmap;    // Map of -CTypeID to metatable and cb slot to func.
+    CCallback cb;        // Temporary callback state.
+    CTypeID1 hash[CTHASH_SIZE];  // Hash anchors for C type table.
 } CTState;
 
 #define CTINFO(ct, flags)    (((CTInfo)(ct) << CTSHIFT_NUM) + (flags))
